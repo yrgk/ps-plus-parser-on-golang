@@ -5,17 +5,16 @@ import (
 	"log"
 	"net/http"
 	"os"
-
 	"strings"
 
+	"github.com/Jeffail/gabs"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/joho/godotenv"
-	// "gorm.io/gorm"
-	// "gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/driver/postgres"
 )
 
 type Game struct {
-	// gorm.Model
 	Id          uint `gorm:"primarykey"`
 	Name        string
 	Price       string
@@ -38,43 +37,33 @@ func main() {
 	password, _ := os.LookupEnv("PASSWORD")
 	port, _ := os.LookupEnv("PORT")
 
-	fmt.Println(host, user, dbname, password, port)
-	// dsn := fmt.Sprintf("host=%s user=%s dbname=%s password=%s port=%s", host, user, dbname, password, port)
-	// db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	dsn := fmt.Sprintf("host=%s user=%s dbname=%s password=%s port=%s", host, user, dbname, password, port)
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 
-	// if err != nil {
-	// 	panic("failed to connect database")
-	// }
+	if err != nil {
+		panic("failed to connect database")
+	}
 
-	// fmt.Println(dsn)
-	// db.AutoMigrate(&Game{})
+	fmt.Println(dsn)
+	db.AutoMigrate(&Game{})
 
-	// for _, game := range getAllNames() {
-		// data := getOneItem(game)
-		// getOneItem(game)
-	// 	db.Create(&Game{
-	// 		Name: data.Name,
-	// 		Price: data.Price,
-	// 		CoverUrl: data.CoverUrl,
-	// 		Description: data.Description,
-	// 		Publisher: data.Publisher,
-	// 	})
+	for idx, game := range getAllNames() {
+		data := getOneItem(game)
+		getOneItem(game)
+		db.Create(&Game{
+			Name: data.Name,
+			Price: data.Price,
+			CoverUrl: data.CoverUrl,
+			Description: data.Description,
+			Publisher: data.Publisher,
+		})
 
-	// fmt.Println(idx, data.Name)
-	// fmt.Println(idx, data.CoverUrl)
-	// 	fmt.Println(idx, game)
-	// }
-	fmt.Println(getOneItem("202006"))
-	// fmt.Println("\n")
-	fmt.Println(getOneItem("10000886"))
-	// fmt.Println("\n")
-	fmt.Println(getOneItem("10000649"))
+		fmt.Println(idx, data.Name)
+	}
 }
 
 func getOneItem(link string) Game {
-// func getOneItem(link string) string {
-	// func getOneItem(link string) *gabs.Container {
-	fullLink := fmt.Sprintf("https://store.playstation.com/en-us/concept%s", link)
+	fullLink := fmt.Sprintf("https://store.playstation.com/en-us/concept/%s", link)
 	res, err := http.Get(fullLink)
 
 	if err != nil {
@@ -92,24 +81,44 @@ func getOneItem(link string) Game {
 	var game Game
 
 	game.Name = doc.Find("h1[data-qa='mfe-game-title#name']").First().Text()
+
 	game.Price = doc.Find("span[data-qa='mfeCtaMain#offer0#finalPrice']").First().Text()
 
-	// CoverUrl := doc.Find("div.pdp-background-image").Children().First().Text()
+	if game.Price == "Free" {
+		game.Price = doc.Find("span[data-qa='mfeCtaMain#offer1#finalPrice']").First().Text()
 
-	// fmt.Println(CoverUrl)
+		if game.Price == "" {
+			game.Price = "Free"
+		}
+	}
+
+	if game.Price == "" {
+		game.Price = "Not available for purchase"
+	}
+
+	script := doc.Find("div.pdp-background-image").Children().First().Text()
+	jsonParsed, err := gabs.ParseJSON([]byte(script))
+	if err != nil {
+		panic(err)
+	}
+	concept := fmt.Sprintf("Concept:%s", link)
+	path := fmt.Sprintf("cache.%s.media", concept)
+	images, _ := jsonParsed.Path(path).Children()
+
+	game.CoverUrl = images[len(images) - 1].Path("url").String()
 
 	game.Description = doc.Find("p[data-qa='mfe-game-overview#description']").First().Text()
 
 	if game.Description == "" {
-		game.Description = doc.Find("div[data-ol-order-start='1']").First().Text()
+		game.Description = doc.Find("div[data-ol-order-start='1']").Find("p").First().Text()
 	}
 
 	game.Publisher = doc.Find("div[data-qa='mfe-game-title#publisher']").First().Text()
 	if game.Publisher == "" {
 		game.Publisher = doc.Find("div.publisher").First().Text()
 	}
-	// return game.CoverUrl
-	return ""
+
+	return game
 }
 
 func getAllNames() []string {
