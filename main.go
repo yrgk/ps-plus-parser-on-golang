@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"strings"
+	// "os"
+	// "strings"
 
 	"github.com/Jeffail/gabs"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/joho/godotenv"
-	"gorm.io/gorm"
-	"gorm.io/driver/postgres"
+	// "gorm.io/driver/postgres"
+	// "gorm.io/gorm"
 )
 
 type Game struct {
@@ -31,35 +31,37 @@ func init() {
 }
 
 func main() {
-	host, _ := os.LookupEnv("HOST")
-	user, _ := os.LookupEnv("USER")
-	dbname, _ := os.LookupEnv("NAME")
-	password, _ := os.LookupEnv("PASSWORD")
-	port, _ := os.LookupEnv("PORT")
+	// host, _ := os.LookupEnv("HOST")
+	// user, _ := os.LookupEnv("USER")
+	// dbname, _ := os.LookupEnv("NAME")
+	// password, _ := os.LookupEnv("PASSWORD")
+	// port, _ := os.LookupEnv("PORT")
 
-	dsn := fmt.Sprintf("host=%s user=%s dbname=%s password=%s port=%s", host, user, dbname, password, port)
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	// dsn := fmt.Sprintf("host=%s user=%s dbname=%s password=%s port=%s", host, user, dbname, password, port)
+	// db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	// if err != nil {
+	// 	panic("failed to connect database")
+	// }
 
-	if err != nil {
-		panic("failed to connect database")
-	}
+	// db.AutoMigrate(&Game{})
 
-	fmt.Println(dsn)
-	db.AutoMigrate(&Game{})
+	// for idx, game := range getAllNames() {
+	// 	data := getOneItem(game)
+	// 	db.Create(&Game{
+	// 		Name: data.Name,
+	// 		Price: data.Price,
+	// 		CoverUrl: data.CoverUrl,
+	// 		Description: data.Description,
+	// 		Publisher: data.Publisher,
+	// 	})
 
-	for idx, game := range getAllNames() {
-		data := getOneItem(game)
-		getOneItem(game)
-		db.Create(&Game{
-			Name: data.Name,
-			Price: data.Price,
-			CoverUrl: data.CoverUrl,
-			Description: data.Description,
-			Publisher: data.Publisher,
-		})
-
-		fmt.Println(idx, data.Name)
-	}
+	// 	fmt.Println(idx, data.Name)
+	// }
+	// for idx, game := range getAllNames() {
+	// 	fmt.Println(idx, game)
+	// }
+	fmt.Println(getOneItem("208810"))
+	fmt.Println(getOneItem("234665"))
 }
 
 func getOneItem(link string) Game {
@@ -82,6 +84,10 @@ func getOneItem(link string) Game {
 
 	game.Name = doc.Find("h1[data-qa='mfe-game-title#name']").First().Text()
 
+	if game.Name == "" {
+		game.Name = doc.Find("h1.game-title").Text()
+	}
+
 	game.Price = doc.Find("span[data-qa='mfeCtaMain#offer0#finalPrice']").First().Text()
 
 	if game.Price == "Free" {
@@ -96,21 +102,10 @@ func getOneItem(link string) Game {
 		game.Price = "Not available for purchase"
 	}
 
-	script := doc.Find("div.pdp-background-image").Children().First().Text()
-	jsonParsed, err := gabs.ParseJSON([]byte(script))
-	if err != nil {
-		panic(err)
-	}
-	concept := fmt.Sprintf("Concept:%s", link)
-	path := fmt.Sprintf("cache.%s.media", concept)
-	images, _ := jsonParsed.Path(path).Children()
-
-	game.CoverUrl = images[len(images) - 1].Path("url").String()
-
 	game.Description = doc.Find("p[data-qa='mfe-game-overview#description']").First().Text()
 
 	if game.Description == "" {
-		game.Description = doc.Find("div[data-ol-order-start='1']").Find("p").First().Text()
+		game.Description = doc.Find("div.text-block").Find("p").First().Text()
 	}
 
 	game.Publisher = doc.Find("div[data-qa='mfe-game-title#publisher']").First().Text()
@@ -118,32 +113,46 @@ func getOneItem(link string) Game {
 		game.Publisher = doc.Find("div.publisher").First().Text()
 	}
 
-	return game
-}
-
-func getAllNames() []string {
-	res, err := http.Get("https://www.playstation.com/en-us/ps-plus/games")
-
+	script := doc.Find("div.pdp-background-image").Children().First().Text()
+	jsonParsed, err := gabs.ParseJSON([]byte(script))
 	if err != nil {
-		log.Fatal("Failed to parse document", err)
+		game.CoverUrl = ""
+		return game
+	} else {
+		concept := fmt.Sprintf("Concept:%s", link)
+		// concept := fmt.Sprintf("Concept:%s", link)
+		path := fmt.Sprintf("cache.%s.media", concept)
+		images, _ := jsonParsed.Path(path).Children()
+		game.CoverUrl = images[len(images)-1].Path("url").String()
+
+		return game
 	}
 
-	defer res.Body.Close()
-
-	doc, err := goquery.NewDocumentFromReader(res.Body)
-
-	if err != nil {
-		log.Fatal("Failed to parse document", err)
-	}
-
-	var nameList []string
-
-	doc.Find("a[module-name='PS Plus Games List']").Each(func(i int, s *goquery.Selection) {
-		link, exists := s.Attr("href")
-		if exists {
-			link = strings.Split(link, "concept/")[1]
-			nameList = append(nameList, link)
-		}
-	})
-	return nameList
 }
+
+// func getAllNames() []string {
+// 	res, err := http.Get("https://www.playstation.com/en-us/ps-plus/games")
+
+// 	if err != nil {
+// 		log.Fatal("Failed to load page", err)
+// 	}
+
+// 	defer res.Body.Close()
+
+// 	doc, err := goquery.NewDocumentFromReader(res.Body)
+
+// 	if err != nil {
+// 		log.Fatal("Failed to parse document", err)
+// 	}
+
+// 	var nameList []string
+
+// 	doc.Find("a[module-name='PS Plus Games List']").Each(func(i int, s *goquery.Selection) {
+// 		link, exists := s.Attr("href")
+// 		if exists {
+// 			link = strings.Split(link, "concept/")[1]
+// 			nameList = append(nameList, link)
+// 		}
+// 	})
+// 	return nameList
+// }
