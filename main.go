@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Jeffail/gabs"
 	"github.com/PuerkitoBio/goquery"
@@ -30,9 +31,9 @@ func init() {
 	}
 }
 
-// begin: 13.24
-
 func main() {
+	start := time.Now()
+
 	host, _ := os.LookupEnv("HOST")
 	user, _ := os.LookupEnv("USER")
 	dbname, _ := os.LookupEnv("NAME")
@@ -50,15 +51,18 @@ func main() {
 	for idx, game := range getAllNames() {
 		data := getOneItem(game)
 		db.Create(&Game{
-			Name: data.Name,
-			Price: data.Price,
-			CoverUrl: data.CoverUrl,
+			Name:        data.Name,
+			Price:       data.Price,
+			CoverUrl:    data.CoverUrl,
 			Description: data.Description,
-			Publisher: data.Publisher,
+			Publisher:   data.Publisher,
 		})
 
-		fmt.Println(idx, data.Name)
+		log.Println(idx, data.Name)
 	}
+
+	duration := time.Since(start)
+	fmt.Printf("\n\nExecution time: %s", duration)
 }
 
 func getOneItem(link string) Game {
@@ -114,15 +118,14 @@ func getOneItem(link string) Game {
 	jsonParsed, err := gabs.ParseJSON([]byte(script))
 	if err != nil {
 		game.CoverUrl = ""
-		return game
 	} else {
 		concept := fmt.Sprintf("Concept:%s", link)
 		path := fmt.Sprintf("cache.%s.media", concept)
 		images, _ := jsonParsed.Path(path).Children()
 		game.CoverUrl = images[len(images)-1].Path("url").String()
-		return game
 	}
 
+	return game
 }
 
 func getAllNames() []string {
