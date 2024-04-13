@@ -122,7 +122,8 @@ func getOneItem(link string) Game {
 		concept := fmt.Sprintf("Concept:%s", link)
 		path := fmt.Sprintf("cache.%s.media", concept)
 		images, _ := jsonParsed.Path(path).Children()
-		game.CoverUrl = images[len(images)-1].Path("url").String()
+		cover := images[len(images)-1].Path("url").String()
+		game.CoverUrl = cover[1:len(cover)-1]
 	}
 
 	return game
